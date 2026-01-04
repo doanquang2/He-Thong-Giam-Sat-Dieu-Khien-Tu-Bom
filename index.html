@@ -295,6 +295,15 @@
   <div class="container">
     <!-- STATUS CARD -->
     <div class="card">
+      <!-- Connection Panel for External Hosting -->
+      <div id="connection-panel" class="hidden" style="margin-bottom: 1rem; padding-bottom: 1rem; border-bottom: 1px solid var(--border);">
+        <div style="display: flex; gap: 0.5rem; margin-bottom: 0.5rem;">
+          <input type="text" id="device-ip-input" placeholder="Nhập IP ESP32 (vd: 192.168.1.10)" style="flex: 1; background: rgba(0,0,0,0.2); border: 1px solid var(--border); color: white; padding: 0.5rem; border-radius: 0.5rem;">
+          <button onclick="saveIp()" style="background: var(--primary); color: white; border: none; padding: 0 1rem; border-radius: 0.5rem; cursor: pointer;">Lưu</button>
+        </div>
+        <div style="font-size: 0.75rem; color: var(--danger);">Lưu ý: Nếu dùng GitHub Pages (HTTPS), bạn có thể cần cho phép "Insecure Content" để kết nối tới IP (HTTP).</div>
+      </div>
+
       <h3><svg viewBox="0 0 24 24"><path d="M13 3h-2v10h2V3zm4.83 2.17l-1.42 1.42C17.99 7.86 19 9.81 19 12c0 3.87-3.13 7-7 7s-7-3.13-7-7c0-2.19 1.01-4.14 2.58-5.42L6.17 5.17C4.23 6.82 3 9.26 3 12c0 4.97 4.03 9 9 9s9-4.03 9-9c0-2.74-1.23-5.18-3.17-6.83z"/></svg> TRẠNG THÁI HỆ THỐNG</h3>
       
       <button id="btn-mode-toggle" class="mode-switch" onclick="toggleMode()">
@@ -383,6 +392,31 @@
 
   <script>
     let currentMode = 0;
+    let deviceIp = localStorage.getItem('esp32_ip');
+
+    // Kiểm tra xem đang chạy trên tên miền (GitHub) hay IP trực tiếp
+    // Nếu không phải là IP (vd: github.io), hiện bảng nhập IP
+    if (window.location.hostname !== '' && !window.location.hostname.match(/^(\d{1,3}\.){3}\d{1,3}$/) && window.location.hostname !== 'esp32.local') {
+      document.getElementById('connection-panel').classList.remove('hidden');
+      if(deviceIp) document.getElementById('device-ip-input').value = deviceIp;
+    }
+
+    function saveIp() {
+      const ip = document.getElementById('device-ip-input').value;
+      if(ip) {
+        localStorage.setItem('esp32_ip', ip);
+        deviceIp = ip;
+        showToast("Đã lưu IP: " + ip);
+        fetchStatus();
+      }
+    }
+
+    function getApiUrl(path) {
+      if (deviceIp && (window.location.hostname === '' || !window.location.hostname.match(/^(\d{1,3}\.){3}\d{1,3}$/))) {
+        return `http://${deviceIp}${path}`;
+      }
+      return path;
+    }
 
     function showToast(msg, type = 'success') {
       const x = document.getElementById("toast");
@@ -482,14 +516,14 @@
     }
 
     function fetchStatus() {
-      fetch('/status')
+      fetch(getApiUrl('/status'))
         .then(r => r.json())
         .then(data => updateUI(data))
         .catch(e => console.log(e));
     }
 
     function setMode(m) {
-      fetch('/mode?val=' + m).then(() => fetchStatus());
+      fetch(getApiUrl('/mode?val=' + m)).then(() => fetchStatus());
     }
 
     function toggleMode() {
@@ -503,11 +537,11 @@
     }
 
     function ctrl(slave, pump, state) {
-      fetch(`/control?slave=${slave}&pump=${pump}&state=${state}`);
+      fetch(getApiUrl(`/control?slave=${slave}&pump=${pump}&state=${state}`));
     }
     
     function ctrlMaster(state) {
-      fetch(`/control_master?state=${state}`);
+      fetch(getApiUrl(`/control_master?state=${state}`));
     }
 
     function saveConfig() {
@@ -516,7 +550,7 @@
       let eh = document.getElementById('eh').value;
       let em = document.getElementById('em').value;
       let mt = document.getElementById('mt').value;
-      let url = `/config?mh=${mh}&mm=${mm}&eh=${eh}&em=${em}&mt=${mt}`;
+      let url = getApiUrl(`/config?mh=${mh}&mm=${mm}&eh=${eh}&em=${em}&mt=${mt}`);
       fetch(url)
         .then(response => {
           if (response.ok) showToast("Đã lưu cài đặt thành công!", "success");
@@ -527,7 +561,7 @@
 
     function syncTime() {
       const d = new Date();
-      const url = `/sync_time?y=${d.getFullYear()}&m=${d.getMonth()+1}&d=${d.getDate()}&h=${d.getHours()}&mi=${d.getMinutes()}&s=${d.getSeconds()}`;
+      const url = getApiUrl(`/sync_time?y=${d.getFullYear()}&m=${d.getMonth()+1}&d=${d.getDate()}&h=${d.getHours()}&mi=${d.getMinutes()}&s=${d.getSeconds()}`);
       fetch(url)
         .then(r => {
           if(r.ok) showToast("Đã đồng bộ thời gian!", "success");
